@@ -1,0 +1,94 @@
+functional requirements:
+1.user should be able to stream and watch TV shows.
+2.managing team should be able to upload and manage content.
+3.users should be able to leave reviews and ratings.
+4.users should be able to manage profile and watch history.
+
+non-functional:
+1.high availability with minimal latency
+2.high reliability.
+3.system should be scalable and efficient
+4.security and data protection.
+
+estimations and constraints
+1.read-heavy system with 1 Billion total users and 200 million daily users
+2. assuming each active user watches 5 videos per day -> around 1 billion video streams per day.
+3. assuming 1,000 new videos and episodes are added per day.
+4. assuming each processed video requires 5 GB of storage on average -> around 25 TB of new storage per day.
+5. system must support billions of video streams daily with low latency worldwide.
+
+
+database tables:
+Users(id-PK, name, email, location, createdAt)
+Videos(id-PK, uploadedBy-FK, title, description, url, views, uploadedAt)
+Comments(id-PK, userId-FK, videoId-FK, comment, createdAt)
+WatchHistory(userId-FK, videoId-FK, watchedAt)
+Tags(id-PK, name)
+VideoTags(videoId-FK, tagId-FK)
+
+
+best solution for the database would be to split the data between different services, each having ownership over a particular table.
+
+system API:
+POST   /videos - upload a new video.
+GET    /videos/{id} - retrieve video metadata and streaming information.
+GET    /search?q={query} - search videos by title, tags, or keywords.
+POST   /videos/{id}/rating - create a new rating.
+GET /users/{id}/recommendations
+
+
+high-level design:
+the best approach would be doing the microservices architecture since it will make it easier to horizontally scale and decouple services.
+
+each service will have ownership of its own data model.
+
+>UserService(user accounts, profiles, authentication, and watch history)
+>StreamService(video streaming requests and video metadata retrieval)
+>SearchService(provides fast content search using Elasticsearch)
+>MediaService(processes uploaded videos, performs transcoding, content filtering, and generates multiple video qualities)
+>AnalyticsService(collects user activity, generates metrics, and powers recommendation algorithms)
+
+inter-service communication:
+REST or HTTP perform well, but we can improve more the performance using gRPC which is more lightweight and efficient
+
+we can also use a service mesh that enables manage, observable, and secure communication between individual services.
+
+video processing(media service)
+processing uploaded videos, filtering content, transcoding formats, and generating multiple quality versions for efficient streaming.
+
+video streaming(stream service)
+video content is delivered through a CDN to reduce latency, decrease load on backend servers, and provide fast content delivery worldwide.
+
+
+
+
+caching:
+Redis can be used to cache frequently accessed video metadata, recommendations, search results, and user profile information.
+LRU (Least Recently Used) can be used as the cache eviction policy, allowing the system to keep the most frequently accessed content in memory and reduce database load.
+
+
+search functionality(search service)
+elasticsearch can be used to provide fast and scalable full-text search across video titles, descriptions, and tags.
+
+
+user management
+>authentication by tokens and strong hashing algorithm for password storage.
+>authorization is implemented using role-based access control (RBAC), ensuring users can only access resources they are permitted to use.
+>user profiles and watch history are managed by the UserService and stored in a dedicated database.
+>security measures should be in place.
+
+analytics and recommendation service
+data collection and storage. We will use a scalable and high-performance solution such as MongoDB.
+data processing and analysis. A data processing pipeline should be implemented to aggregate and transform raw data into good and useful metrics.
+
+analytics and recommendation service
+>user watch history, ratings, reviews, and viewing behavior should be analyzed to generate personalized content recommendations.
+>recommendation engine should continuously update recommendations based on new user activity.
+
+
+solutions for possible problems
+-run multiple instances of each of our services
+-introduce load balancer between clients, servers, databases, and cache servers.
+-use multiple replicas for our database and/or distributed caches.
+-horizontally scale the most loaded services of the system
+-make sure each service is handling single domain in our system
