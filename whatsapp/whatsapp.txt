@@ -1,0 +1,125 @@
+functional requirements:
+1.support one-on-one chat and group chats
+2.support file sharing like images, and videos, etc.
+3.should allow us to see a 'Send', 'Delivered', and 'Read' reciepts
+4.show last seen time of the users
+5.should send push notifications
+
+
+
+non-functional requirements:
+1.highly availiable
+2.horizontaly scalable with increasing demand
+3.perform at low latency
+
+
+
+estimations:
+1.50 million daily users  and on average each user sends
+at least 10 messages to 4 different people ->
+  this gives us 2 billion messages per day
+2.assume that 5% of messages are media files ->
+  100 million files that need to be stored
+3.2 billion requests per day ->
+  24000 requests per second
+4.assume each message on average is 100 bytes->
+  we require about 200 GB of storage every day
+5.assume each file is 100 KB on average->
+  we will require about 10 TB of storage every day ->
+    for 10 years, we will require about 38 PB of storage
+6.as our system is handling 10 TB every day,
+  we will require a minimum bandwidth of around 120 MBps
+
+
+
+database tables:
+users(id, name, phoneNumber)
+
+groups(id, messageId)
+
+chats(id, messageId)
+
+users_groups(id, userId, groupId)
+
+users_chats(id, userId, chatId)
+
+messages(id, userId, chatId, groupId, type, content, sentAt, deliveredAt, seenAt)
+
+while our data model seems quite relational,
+we don't need to store everything in a single database,
+as this can limit our scalability and quickly become a bottleneck.
+
+split the data between different services,
+each having ownership over a particular table,
+then we can use a relational database such as PostgreSQL.
+
+
+
+system APIs:
+getAll(userId) : Chat[]
+
+getMessages(chatId) : Message[]
+
+sendMessage(userId, chatId) : boolean
+
+joinGroup(userId, groupId) : boolean
+
+leaveGroup(userId, groupId) : boolean
+
+
+
+high-level design:
+we will be using a microservices architecture
+since it will make it easier to horizontally scale and decouple our services
+
+each service will have ownership of its own data model
+
+user service - handles user accounts, login, authentication, and profile information.
+
+chat service - handles private chats and group chats using WebSockets for real-time messaging.
+cache can be used to track active users and online status.
+
+notification service - sends push notifications to users when new messages arrive.
+
+presence service - tracks user online status and last seen information.
+
+media service - handles uploads and storage of images, videos, documents, and other files.
+
+
+
+message delivery:
+we will use the push model with WebSockets for real-time message delivery.
+this approach reduces latency, minimizes unnecessary requests,
+and provides bidirectional communication between clients and servers.
+
+
+
+last seen functionality:
+presence service can use a heartbeat mechanism to track user activity.
+client periodically sends a heartbeat signal to the server to indicate that the user is still online.
+if heartbeats stop, the user is considered offline and the last seen timestamp is updated.
+
+
+
+handling read receipts:
+when a message is delivered to a client, the client sends an acknowledgment back to the server.
+system then updates the deliveredAt timestamp for that message.
+when the user opens the chat and views the message, the seenAt timestamp is updated and the message is marked as seen.
+
+
+
+notifications:
+when a message is sent, the system checks whether the recipient is currently online.
+if the recipient is online, the message is delivered through the existing WebSocket connection.
+if the recipient is offline, the Chat Service publishes an event to a message queue.
+notification service consumes the event and sends a push notification to the recipient's device.
+
+
+
+identifying and resolving bottlenecks:
+1.run multiple instances of each of our services
+2.horizontally scale the most loaded services of the system
+3.introduce load balancers between clients, servers, databases, and cache servers
+4.multiple read replicas for our databases
+5.multiple instances and replicas for our distributed cache
+6.have a standby replica of our API Gateway
